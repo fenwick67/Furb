@@ -1,4 +1,5 @@
 .idea
 media
 output_tts.mp3
+secrets.py
 *.pyc
