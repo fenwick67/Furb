@@ -1,8 +1,12 @@
 import pyglet
 import speech_recognition as sr
 from gtts import gTTS
+import pyttsx
+
 import threading
 import os
+import time
+# from RPi.GPIO import GPIO
 
 def stub(*args):
     return None
@@ -51,6 +55,16 @@ class Furb():
                     break
 
         while(True):
+
+            # wait for activation
+            while(True):
+                if self.poll_activation():
+                    break
+                else:
+                    time.sleep(100)
+
+            self.greet()
+
             r = sr.Recognizer()
             with sr.Microphone(sample_rate=44100) as source:
                 print("listening")
@@ -61,14 +75,16 @@ class Furb():
                     print("Google Speech Recognition: " + what_i_said)
                     _handle(what_i_said)
                 except sr.UnknownValueError:
+                    self.what()
                     print("Google Speech Recognition could not understand your audio")
                 except sr.RequestError as e:
+                    self.what()
                     print("Could not request results from Google Speech Recognition service; {0}".format(e))
 
 
     def say_sync(self, text, interrupt=False):
         self.speech_thread = threading.Thread(
-            target=self._say_thread,
+            target=self._say_thread_2,
             kwargs={"text":text, "interrupt":interrupt},
         )
         self.speech_thread.run()
@@ -78,8 +94,18 @@ class Furb():
         self.speech_lock.acquire()
         tts = gTTS(text=text, lang="en-us")
         tts.save("output_tts.mp3")
-        speech = pyglet.media.load('output_tts.mp3', streaming=False)
+        # speech = pyglet.media.load('output_tts.mp3', streaming=False)
         os.system("vlc --play-and-exit output_tts.mp3")
+        print("I SAID IT")
+        self.speech_lock.release()
+
+    def _say_thread_2(self,text="default",interrupt=False):
+        print(u"GONNA SAY " + text)
+        # get text in ASCII
+        t=text.encode('ascii', 'replace').replace('"','\"')
+
+        self.speech_lock.acquire()
+        os.system('espeak -g 2 -p 50 "{0}"'.format(t))
         print("I SAID IT")
         self.speech_lock.release()
 
@@ -91,3 +117,25 @@ class Furb():
         self.speech_lock = threading.Lock()
 
         self.pyglet_thread=threading.Thread(target=pyglet.app.run)
+
+    # Stuff below this is ripe for overriding
+
+    def greet(self):
+        # overwrite this if you'd like
+        self.say_sync("coo coo",False)
+
+    def what(self):
+        self.say_sync("Sorry, I didn't understand that.",False)
+
+    def poll_activation(self):
+        """
+        poll activation circuit (button, piezo etc)
+
+        polls every 100ms
+
+        if you need faster activation, start your own thread and poll on your own
+
+        :return: True when button is pushed
+        """
+
+        return True
